@@ -172,21 +172,110 @@ export class LLMChatService extends ChatService {
   }
 
   async processMessage(message, colors) {
-    // This is a placeholder for the actual LLM implementation
-    // In a real implementation, this would make an API call to the LLM service
-    
-    console.log('LLM would process:', message);
-    console.log('With colors context:', colors);
-    
-    // For now, just return a mock response
-    return {
-      message: "I'm an LLM-powered assistant, but I'm not connected to a real LLM yet. Here are some placeholder color suggestions.",
-      suggestedColors: [
-        { hex: '#FF5733', name: 'Burnt Sienna' },
-        { hex: '#33FF57', name: 'Screamin Green' },
-        { hex: '#3357FF', name: 'Royal Blue' }
-      ]
-    };
+    // Check if endpoint and API key are configured
+    if (!this.endpoint || !this.apiKey) {
+      console.error('LLM endpoint or API key not configured');
+      return {
+        message: "I'm not properly configured to use an external LLM. Please check your API endpoint and key in the settings.",
+        suggestedColors: []
+      };
+    }
+
+    try {
+      // Prepare the message for the LLM
+      const colorContext = colors.map(color => {
+        const colorName = ntc.name(color)[1];
+        return `${color} (${colorName})`;
+      }).join(', ');
+
+      // Create the prompt with context about the current palette
+      const prompt = `
+You are a color assistant helping with color palette suggestions. 
+Current palette: ${colorContext}
+
+User message: ${message}
+
+Respond with helpful color advice. If suggesting new colors, include them in a structured format that can be parsed.
+For each suggested color, provide:
+1. A hex code (e.g., #FF5733)
+2. A descriptive name for the color
+
+Keep your response concise and focused on color advice.
+`;
+
+      // Make the API call to the external LLM
+      const response = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo", // Default model, can be made configurable
+          messages: [
+            { role: "system", content: "You are a color assistant that helps with palette suggestions." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`API request failed: ${response.status} ${JSON.stringify(errorData)}`);
+      }
+
+      const data = await response.json();
+      
+      // Extract the LLM's response text
+      const llmResponse = data.choices?.[0]?.message?.content || 'No response from LLM';
+      
+      // Parse suggested colors from the response
+      // This is a simple regex-based parser that looks for hex codes
+      const hexCodeRegex = /#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})/g;
+      const colorNameRegex = /#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})[^\n]*?([A-Za-z\s]+)/g;
+      
+      const suggestedColors = [];
+      const hexMatches = llmResponse.match(hexCodeRegex) || [];
+      
+      // Try to extract color names along with hex codes
+      let colorMatch;
+      while ((colorMatch = colorNameRegex.exec(llmResponse)) !== null) {
+        const hex = colorMatch[0].match(hexCodeRegex)[0];
+        let name = colorMatch[2].trim();
+        
+        // If no name was found or it's too short, use ntc to get a name
+        if (!name || name.length < 3) {
+          name = ntc.name(hex)[1];
+        }
+        
+        suggestedColors.push({
+          hex,
+          name
+        });
+      }
+      
+      // If no colors were found with names, just use the hex codes and get names from ntc
+      if (suggestedColors.length === 0 && hexMatches.length > 0) {
+        for (const hex of hexMatches) {
+          suggestedColors.push({
+            hex,
+            name: ntc.name(hex)[1]
+          });
+        }
+      }
+
+      return {
+        message: llmResponse,
+        suggestedColors
+      };
+    } catch (error) {
+      console.error('Error calling LLM API:', error);
+      return {
+        message: `I encountered an error while trying to connect to the external LLM: ${error.message}. Please check your API endpoint and key.`,
+        suggestedColors: []
+      };
+    }
   }
 }
 
