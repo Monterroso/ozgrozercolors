@@ -22,6 +22,29 @@ export default ({ modalIsOpen, closeModal }) => {
   const nodeRef = useRef(null) // Required by react-draggable in React 18
   const chatService = useRef(createChatService(useLLM, llmConfig))
 
+  // Load settings from localStorage when component mounts
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        // Load useLLM setting
+        const storedUseLLM = localStorage.getItem('useLLM')
+        if (storedUseLLM !== null) {
+          setLocalUseLLM(JSON.parse(storedUseLLM))
+        }
+        
+        // Load llmConfig settings
+        const storedLLMConfig = localStorage.getItem('llmConfig')
+        if (storedLLMConfig !== null) {
+          const config = JSON.parse(storedLLMConfig)
+          setLocalEndpoint(config.endpoint || '')
+          setLocalApiKey(config.apiKey || '')
+        }
+      } catch (error) {
+        console.error('Error loading LLM settings from localStorage:', error)
+      }
+    }
+  }, [])
+
   // Update chat service if useLLM or llmConfig changes
   useEffect(() => {
     chatService.current = createChatService(useLLM, llmConfig)
@@ -158,6 +181,7 @@ export default ({ modalIsOpen, closeModal }) => {
   const closeSettings = () => setShowSettings(false)
   
   const saveSettings = () => {
+    // Update state
     setState({
       useLLM: localUseLLM,
       llmConfig: {
@@ -165,6 +189,14 @@ export default ({ modalIsOpen, closeModal }) => {
         apiKey: localApiKey
       }
     })
+    
+    // Save settings to localStorage
+    localStorage.setItem('useLLM', JSON.stringify(localUseLLM))
+    localStorage.setItem('llmConfig', JSON.stringify({
+      endpoint: localEndpoint,
+      apiKey: localApiKey
+    }))
+    
     closeSettings()
   }
 

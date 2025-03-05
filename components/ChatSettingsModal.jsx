@@ -1,5 +1,5 @@
 import Modal from 'react-modal'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MdClose } from 'react-icons/md'
 
 import modalStyles from '@styles/Modal.module.scss'
@@ -16,7 +16,38 @@ export default ({ modalIsOpen, closeModal }) => {
   const [localEndpoint, setLocalEndpoint] = useState(llmConfig.endpoint || '')
   const [localApiKey, setLocalApiKey] = useState(llmConfig.apiKey || '')
   
+  // Initialize local state from localStorage when component mounts
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        // Load useLLM setting
+        const storedUseLLM = localStorage.getItem('useLLM')
+        if (storedUseLLM !== null) {
+          setLocalUseLLM(JSON.parse(storedUseLLM))
+        }
+        
+        // Load llmConfig settings
+        const storedLLMConfig = localStorage.getItem('llmConfig')
+        if (storedLLMConfig !== null) {
+          const config = JSON.parse(storedLLMConfig)
+          setLocalEndpoint(config.endpoint || '')
+          setLocalApiKey(config.apiKey || '')
+        }
+      } catch (error) {
+        console.error('Error loading LLM settings from localStorage:', error)
+      }
+    }
+  }, [])
+  
+  // Update local state when context state changes
+  useEffect(() => {
+    setLocalUseLLM(useLLM)
+    setLocalEndpoint(llmConfig.endpoint || '')
+    setLocalApiKey(llmConfig.apiKey || '')
+  }, [useLLM, llmConfig])
+  
   const handleSave = () => {
+    // Save settings to state
     setState({
       useLLM: localUseLLM,
       llmConfig: {
@@ -24,6 +55,14 @@ export default ({ modalIsOpen, closeModal }) => {
         apiKey: localApiKey
       }
     })
+    
+    // Save settings to localStorage
+    localStorage.setItem('useLLM', JSON.stringify(localUseLLM))
+    localStorage.setItem('llmConfig', JSON.stringify({
+      endpoint: localEndpoint,
+      apiKey: localApiKey
+    }))
+    
     closeModal()
   }
   
