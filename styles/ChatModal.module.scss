@@ -186,46 +186,94 @@
   }
 }
 
-.suggestedColors {
+.suggestedColorsContainer {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   margin-top: 10px;
+  background-color: rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  padding: 10px;
 }
 
-.colorSuggestion {
+.suggestedColors {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 5px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.colorBox {
+  position: relative;
+  cursor: pointer;
   border-radius: 6px;
-  background-color: rgba(255, 255, 255, 0.7);
+  padding: 2px;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: scale(1.05);
+  }
+
+  &.selected {
+    border-color: #2196f3;
+  }
 }
 
 .colorPreview {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   border-radius: 4px;
   border: 1px solid #ddd;
 }
 
-.colorName {
-  flex: 1;
-  font-size: 14px;
-}
-
-.addColorButton {
+.inPaletteIndicator {
+  position: absolute;
+  top: -5px;
+  right: -5px;
   background-color: #4caf50;
   color: white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.colorActionButtons {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.addButton, .removeButton {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   border: none;
   border-radius: 4px;
-  padding: 4px 8px;
+  padding: 6px 12px;
   font-size: 12px;
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.addButton {
+  background-color: #4caf50;
+  color: white;
 
   &:hover {
     background-color: #45a049;
+  }
+}
+
+.removeButton {
+  background-color: #f44336;
+  color: white;
+
+  &:hover {
+    background-color: #d32f2f;
   }
 }
 

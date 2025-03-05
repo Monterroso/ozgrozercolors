@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
-import { MdClose } from 'react-icons/md'
+import { MdClose, MdAdd, MdRemove } from 'react-icons/md'
 import Draggable from 'react-draggable'
 import { PiPaperPlaneTilt, PiGear, PiArrowLeft } from 'react-icons/pi'
 
 import styles from '@styles/ChatModal.module.scss'
 import { useAppContext } from '@contexts/AppContext'
 import { createChatService } from '@services/ChatService'
+import ntc from '@functions/ntc'
 
 export default ({ modalIsOpen, closeModal }) => {
   const { state, setState } = useAppContext()
@@ -16,6 +17,7 @@ export default ({ modalIsOpen, closeModal }) => {
   const [localUseLLM, setLocalUseLLM] = useState(useLLM)
   const [localEndpoint, setLocalEndpoint] = useState(llmConfig.endpoint || '')
   const [localApiKey, setLocalApiKey] = useState(llmConfig.apiKey || '')
+  const [selectedColors, setSelectedColors] = useState({})
   const chatContainerRef = useRef(null)
   const nodeRef = useRef(null) // Required by react-draggable in React 18
   const chatService = useRef(createChatService(useLLM, llmConfig))
@@ -68,6 +70,9 @@ export default ({ modalIsOpen, closeModal }) => {
       setState(prevState => ({
         chatHistory: [...prevState.chatHistory, assistantMessage]
       }))
+
+      // Reset selected colors for the new message
+      setSelectedColors({})
     } catch (error) {
       console.error('Error processing message:', error)
       
@@ -93,11 +98,60 @@ export default ({ modalIsOpen, closeModal }) => {
     }
   }
 
-  const handleAddColor = (color) => {
-    // Add the suggested color to the palette
-    setState(prevState => ({
-      colors: [...prevState.colors, color.hex]
+  const toggleColorSelection = (messageIndex, colorIndex) => {
+    const key = `${messageIndex}-${colorIndex}`
+    setSelectedColors(prev => ({
+      ...prev,
+      [key]: !prev[key]
     }))
+  }
+
+  const isColorInPalette = (hexColor) => {
+    // Check if the color is already in the palette or has a similar name
+    const colorName = ntc.name(hexColor)[1]
+    
+    return colors.some(existingColor => {
+      const existingColorName = ntc.name(existingColor)[1]
+      return existingColor === hexColor || existingColorName === colorName
+    })
+  }
+
+  const handleAddColors = (messageIndex) => {
+    // Get all selected colors for this message
+    const selectedForMessage = Object.entries(selectedColors)
+      .filter(([key, isSelected]) => isSelected && key.startsWith(`${messageIndex}-`))
+      .map(([key]) => {
+        const colorIndex = parseInt(key.split('-')[1])
+        return chatHistory[messageIndex].suggestedColors[colorIndex].hex
+      })
+    
+    // Filter out colors that are already in the palette
+    const newColors = selectedForMessage.filter(color => !isColorInPalette(color))
+    
+    if (newColors.length > 0) {
+      setState(prevState => ({
+        colors: [...prevState.colors, ...newColors]
+      }))
+    }
+  }
+
+  const handleRemoveColors = (messageIndex) => {
+    // Get all selected colors for this message
+    const selectedForMessage = Object.entries(selectedColors)
+      .filter(([key, isSelected]) => isSelected && key.startsWith(`${messageIndex}-`))
+      .map(([key]) => {
+        const colorIndex = parseInt(key.split('-')[1])
+        return chatHistory[messageIndex].suggestedColors[colorIndex].hex
+      })
+    
+    // Filter out colors that are in the palette
+    const colorsToRemove = selectedForMessage.filter(color => isColorInPalette(color))
+    
+    if (colorsToRemove.length > 0) {
+      setState(prevState => ({
+        colors: prevState.colors.filter(color => !colorsToRemove.includes(color))
+      }))
+    }
   }
 
   const openSettings = () => setShowSettings(true)
@@ -159,31 +213,56 @@ export default ({ modalIsOpen, closeModal }) => {
                       <p>Ask me about color suggestions or palette advice!</p>
                     </div>
                   ) : (
-                    chatHistory.map((chat, index) => (
+                    chatHistory.map((chat, messageIndex) => (
                       <div 
-                        key={index} 
+                        key={messageIndex} 
                         className={`${styles.chatMessage} ${chat.isUser ? styles.userMessage : styles.assistantMessage}`}
                       >
                         <div className={styles.messageContent}>
                           {chat.message}
                         </div>
                         {!chat.isUser && chat.suggestedColors && chat.suggestedColors.length > 0 && (
-                          <div className={styles.suggestedColors}>
-                            {chat.suggestedColors.map((color, colorIndex) => (
-                              <div key={colorIndex} className={styles.colorSuggestion}>
-                                <div 
-                                  className={styles.colorPreview} 
-                                  style={{ backgroundColor: color.hex }}
-                                />
-                                <span className={styles.colorName}>{color.name}</span>
-                                <button 
-                                  className={styles.addColorButton}
-                                  onClick={() => handleAddColor(color)}
-                                >
-                                  Add
-                                </button>
-                              </div>
-                            ))}
+                          <div className={styles.suggestedColorsContainer}>
+                            <div className={styles.suggestedColors}>
+                              {chat.suggestedColors.map((color, colorIndex) => {
+                                const isSelected = selectedColors[`${messageIndex}-${colorIndex}`]
+                                const isInPalette = isColorInPalette(color.hex)
+                                
+                                return (
+                                  <div 
+                                    key={colorIndex} 
+                                    className={`${styles.colorBox} ${isSelected ? styles.selected : ''}`}
+                                    onClick={() => toggleColorSelection(messageIndex, colorIndex)}
+                                  >
+                                    <div 
+                                      className={styles.colorPreview} 
+                                      style={{ backgroundColor: color.hex }}
+                                    />
+                                    {isInPalette && (
+                                      <div className={styles.inPaletteIndicator} title="Already in palette">
+                                        ✓
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                            <div className={styles.colorActionButtons}>
+                              <button 
+                                className={styles.addButton}
+                                onClick={() => handleAddColors(messageIndex)}
+                                title="Add selected colors to palette"
+                              >
+                                <MdAdd /> Add
+                              </button>
+                              <button 
+                                className={styles.removeButton}
+                                onClick={() => handleRemoveColors(messageIndex)}
+                                title="Remove selected colors from palette"
+                              >
+                                <MdRemove /> Remove
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
