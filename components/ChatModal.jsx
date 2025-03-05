@@ -1,19 +1,21 @@
 import { useState, useRef, useEffect } from 'react'
 import { MdClose } from 'react-icons/md'
 import Draggable from 'react-draggable'
-import { PiPaperPlaneTilt, PiGear } from 'react-icons/pi'
+import { PiPaperPlaneTilt, PiGear, PiArrowLeft } from 'react-icons/pi'
 
 import styles from '@styles/ChatModal.module.scss'
 import { useAppContext } from '@contexts/AppContext'
 import { createChatService } from '@services/ChatService'
-import ChatSettingsModal from './ChatSettingsModal'
 
 export default ({ modalIsOpen, closeModal }) => {
   const { state, setState } = useAppContext()
   const { colors, chatHistory = [], useLLM = false, llmConfig = {} } = state
   const [message, setMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [settingsModalIsOpen, setSettingsModalIsOpen] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [localUseLLM, setLocalUseLLM] = useState(useLLM)
+  const [localEndpoint, setLocalEndpoint] = useState(llmConfig.endpoint || '')
+  const [localApiKey, setLocalApiKey] = useState(llmConfig.apiKey || '')
   const chatContainerRef = useRef(null)
   const nodeRef = useRef(null) // Required by react-draggable in React 18
   const chatService = useRef(createChatService(useLLM, llmConfig))
@@ -21,6 +23,9 @@ export default ({ modalIsOpen, closeModal }) => {
   // Update chat service if useLLM or llmConfig changes
   useEffect(() => {
     chatService.current = createChatService(useLLM, llmConfig)
+    setLocalUseLLM(useLLM)
+    setLocalEndpoint(llmConfig.endpoint || '')
+    setLocalApiKey(llmConfig.apiKey || '')
   }, [useLLM, llmConfig])
 
   // Scroll to bottom when chat history changes
@@ -95,35 +100,139 @@ export default ({ modalIsOpen, closeModal }) => {
     }))
   }
 
-  const openSettingsModal = () => setSettingsModalIsOpen(true)
-  const closeSettingsModal = () => setSettingsModalIsOpen(false)
+  const openSettings = () => setShowSettings(true)
+  const closeSettings = () => setShowSettings(false)
+  
+  const saveSettings = () => {
+    setState({
+      useLLM: localUseLLM,
+      llmConfig: {
+        endpoint: localEndpoint,
+        apiKey: localApiKey
+      }
+    })
+    closeSettings()
+  }
 
   if (!modalIsOpen) return null;
 
   return (
-    <>
-      <Draggable 
-        nodeRef={nodeRef} 
-        handle=".handle"
-        defaultPosition={{x: 100, y: 100}}
+    <Draggable 
+      nodeRef={nodeRef} 
+      handle=".handle"
+      defaultPosition={{x: 100, y: 100}}
+    >
+      <div 
+        ref={nodeRef} 
+        className={styles.draggableWrapper}
       >
-        <div 
-          ref={nodeRef} 
-          className={styles.draggableWrapper}
-        >
-          <div className={styles.draggableContainer}>
-            <div className={`${styles.modalHeader} handle`}>
-              <div className={styles.title}>
-                Color Assistant
+        <div className={styles.draggableContainer}>
+          {!showSettings ? (
+            // Chat UI
+            <>
+              <div className={`${styles.modalHeader} handle`}>
+                <div className={styles.title}>
+                  Color Assistant
+                </div>
+                <div className={styles.headerButtons}>
+                  <button
+                    type='button'
+                    onClick={openSettings}
+                    className={styles.settingsButton}
+                  >
+                    <PiGear />
+                  </button>
+                  <button
+                    type='button'
+                    onClick={closeModal}
+                    className={styles.closeButton}
+                  >
+                    <MdClose />
+                  </button>
+                </div>
               </div>
-              <div className={styles.headerButtons}>
-                <button
-                  type='button'
-                  onClick={openSettingsModal}
-                  className={styles.settingsButton}
-                >
-                  <PiGear />
-                </button>
+
+              <div className={styles.modalContent}>
+                <div className={styles.chatContainer} ref={chatContainerRef}>
+                  {chatHistory.length === 0 ? (
+                    <div className={styles.emptyChat}>
+                      <p>Ask me about color suggestions or palette advice!</p>
+                    </div>
+                  ) : (
+                    chatHistory.map((chat, index) => (
+                      <div 
+                        key={index} 
+                        className={`${styles.chatMessage} ${chat.isUser ? styles.userMessage : styles.assistantMessage}`}
+                      >
+                        <div className={styles.messageContent}>
+                          {chat.message}
+                        </div>
+                        {!chat.isUser && chat.suggestedColors && chat.suggestedColors.length > 0 && (
+                          <div className={styles.suggestedColors}>
+                            {chat.suggestedColors.map((color, colorIndex) => (
+                              <div key={colorIndex} className={styles.colorSuggestion}>
+                                <div 
+                                  className={styles.colorPreview} 
+                                  style={{ backgroundColor: color.hex }}
+                                />
+                                <span className={styles.colorName}>{color.name}</span>
+                                <button 
+                                  className={styles.addColorButton}
+                                  onClick={() => handleAddColor(color)}
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                  {isLoading && (
+                    <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
+                      <div className={styles.loadingIndicator}>
+                        <span>•</span><span>•</span><span>•</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className={styles.inputContainer}>
+                  <textarea
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Ask about colors or palette advice..."
+                    className={styles.chatInput}
+                    disabled={isLoading}
+                  />
+                  <button 
+                    onClick={handleSendMessage}
+                    className={styles.sendButton}
+                    disabled={!message.trim() || isLoading}
+                  >
+                    <PiPaperPlaneTilt />
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            // Settings UI
+            <>
+              <div className={`${styles.modalHeader} handle`}>
+                <div className={styles.titleWithBack}>
+                  <button
+                    type='button'
+                    onClick={closeSettings}
+                    className={styles.backButton}
+                  >
+                    <PiArrowLeft />
+                  </button>
+                  <div className={styles.title}>
+                    Assistant Settings
+                  </div>
+                </div>
                 <button
                   type='button'
                   onClick={closeModal}
@@ -132,80 +241,74 @@ export default ({ modalIsOpen, closeModal }) => {
                   <MdClose />
                 </button>
               </div>
-            </div>
 
-            <div className={styles.modalContent}>
-              <div className={styles.chatContainer} ref={chatContainerRef}>
-                {chatHistory.length === 0 ? (
-                  <div className={styles.emptyChat}>
-                    <p>Ask me about color suggestions or palette advice!</p>
+              <div className={styles.modalContent}>
+                <div className={styles.settingsForm}>
+                  <div className={styles.settingItem}>
+                    <label className={styles.settingLabel}>
+                      <input
+                        type="checkbox"
+                        checked={localUseLLM}
+                        onChange={(e) => setLocalUseLLM(e.target.checked)}
+                      />
+                      Use External LLM
+                    </label>
+                    <p className={styles.settingDescription}>
+                      When enabled, the assistant will use an external LLM API for responses.
+                      When disabled, it will use a built-in rule-based system.
+                    </p>
                   </div>
-                ) : (
-                  chatHistory.map((chat, index) => (
-                    <div 
-                      key={index} 
-                      className={`${styles.chatMessage} ${chat.isUser ? styles.userMessage : styles.assistantMessage}`}
-                    >
-                      <div className={styles.messageContent}>
-                        {chat.message}
+                  
+                  {localUseLLM && (
+                    <>
+                      <div className={styles.settingItem}>
+                        <label className={styles.settingLabel}>
+                          LLM API Endpoint
+                        </label>
+                        <input
+                          type="text"
+                          value={localEndpoint}
+                          onChange={(e) => setLocalEndpoint(e.target.value)}
+                          placeholder="https://api.example.com/v1/chat/completions"
+                          className={styles.settingInput}
+                        />
                       </div>
-                      {!chat.isUser && chat.suggestedColors && chat.suggestedColors.length > 0 && (
-                        <div className={styles.suggestedColors}>
-                          {chat.suggestedColors.map((color, colorIndex) => (
-                            <div key={colorIndex} className={styles.colorSuggestion}>
-                              <div 
-                                className={styles.colorPreview} 
-                                style={{ backgroundColor: color.hex }}
-                              />
-                              <span className={styles.colorName}>{color.name}</span>
-                              <button 
-                                className={styles.addColorButton}
-                                onClick={() => handleAddColor(color)}
-                              >
-                                Add
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-                {isLoading && (
-                  <div className={`${styles.chatMessage} ${styles.assistantMessage}`}>
-                    <div className={styles.loadingIndicator}>
-                      <span>•</span><span>•</span><span>•</span>
-                    </div>
+                      
+                      <div className={styles.settingItem}>
+                        <label className={styles.settingLabel}>
+                          API Key
+                        </label>
+                        <input
+                          type="password"
+                          value={localApiKey}
+                          onChange={(e) => setLocalApiKey(e.target.value)}
+                          placeholder="Your API key"
+                          className={styles.settingInput}
+                        />
+                      </div>
+                    </>
+                  )}
+                  
+                  <div className={styles.buttonContainer}>
+                    <button
+                      onClick={closeSettings}
+                      className={styles.cancelButton}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveSettings}
+                      className={styles.saveButton}
+                    >
+                      Save Settings
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
-              
-              <div className={styles.inputContainer}>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask about colors or palette advice..."
-                  className={styles.chatInput}
-                  disabled={isLoading}
-                />
-                <button 
-                  onClick={handleSendMessage}
-                  className={styles.sendButton}
-                  disabled={!message.trim() || isLoading}
-                >
-                  <PiPaperPlaneTilt />
-                </button>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
-      </Draggable>
-
-      <ChatSettingsModal
-        modalIsOpen={settingsModalIsOpen}
-        closeModal={closeSettingsModal}
-      />
-    </>
+      </div>
+    </Draggable>
   )
 } 
