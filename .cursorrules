@@ -1,0 +1,62 @@
+
+START SPECIFICATION:
+# Technical Specification
+
+## Rules
+
+## System Overview
+The system is a web application designed to manage and manipulate color palettes. It allows users to create, edit, save, load, and share color palettes. The application features a user-friendly interface with drag-and-drop functionality for reordering colors, a color picker for selecting new colors, and various modals for importing, exporting, and saving palettes. The system is built using React for the frontend, with Next.js for server-side rendering and routing. It utilizes a global state management context (`AppContext`) to handle application-wide state.
+
+### Main Components and Their Roles
+- **Frontend Components**: React components such as `App`, `ColorItem`, `ColorPicker`, `Colors`, `Header`, and various modals handle the user interface and interactions.
+- **Functions**: Utility functions like `adjustTextColor`, `calculateNewColor`, `generateColorVariables`, and `ntc.name` provide core functionality for color manipulation and naming.
+- **Global State**: `AppContext` manages the global state of the application, including color palettes and user actions.
+- **Styles**: SCSS modules define the styling for various components and the overall layout.
+- **CI/CD**: GitHub Actions workflow (`nextjs.yml`) for building and deploying the application.
+- **License**: GNU General Public License Version 3 (GPLv3) governs the usage and distribution of the software.
+
+## Core Functionality
+### Primary Features and Their Implementation
+1. **Color Palette Management**
+   - **`components/App.jsx`**: Initializes the application state and manages the main layout.
+   - **`components/Colors.jsx`**: Manages the list of colors with drag-and-drop reordering.
+   - **`components/ColorItem.jsx`**: Renders individual color items with drag-and-drop functionality and color picker display.
+   - **`functions/calculateNewColor.js`**: Generates a new color based on an array of existing colors and an index.
+   - **`functions/generateColorVariables.js`**: Generates CSS, SCSS, and JS variables for an array of colors.
+
+2. **Color Manipulation**
+   - **`functions/adjustTextColor.js`**: Determines the appropriate text color based on the luminance of a given background color.
+   - **`functions/ntc.js`**: Matches input colors to predefined color names using RGB and HSL values.
+
+3. **User Interface and Interactions**
+   - **`components/Header.jsx`**: Renders the application header with various action buttons.
+   - **`components/Modal.module.scss`**: Comprehensive styles for modal overlay and content.
+   - **`components/Formik.jsx`**: Custom Formik components for input and textarea fields with validation styling.
+
+4. **Export and Import Functionality**
+   - **`components/ExportModal.jsx`**: Renders a modal for exporting color palettes in different formats.
+   - **`components/ImportModal.jsx`**: Renders a modal for importing color palettes via a textarea.
+
+5. **State Management**
+   - **`contexts/AppContext.jsx`**: Defines the `AppContext` for global state management, including colors, palettes, and other app-wide states.
+
+### Complex Algorithms and Business Logic
+- **Color Matching Algorithm in `ntc.name(color)`**: Calculates the distance between the input color and each color in the `ntc.names` array using both RGB and HSL values to find the closest match.
+- **New Color Generation in `calculateNewColor`**: Converts hex colors to RGB, calculates the average color between two given colors, and shifts a color by a random amount within a specified range based on the index.
+
+## Architecture
+### Data Flow Patterns
+1. **Initialization**:
+   - The application initializes by loading cookies and setting the initial colors in `components/App.jsx`.
+2. **User Interactions**:
+   - Users can add new colors using `NewColorButton`, which calls `calculateNewColor` to generate a new color and updates the state.
+   - Users can reorder colors using drag-and-drop functionality in `components/Colors.jsx`.
+   - Users can select new colors using the `ColorPicker` component.
+3. **State Management**:
+   - The global state is managed using `AppContext`, which provides access to the application state and state setter across components.
+4. **Export and Import**:
+   - Users can export color palettes using `ExportModal`, which generates variable declarations for CSS, SCSS, and JS.
+   - Users can import color palettes using `ImportModal`, which parses the input and updates the state.
+5. **CI/CD**:
+   - The GitHub Actions workflow (`nextjs.yml`) builds and deploys the application to GitHub Pages.
+END SPECIFICATION

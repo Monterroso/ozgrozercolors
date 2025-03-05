@@ -8,7 +8,15 @@ export function AppProvider ({ children }) {
     palettes: [],
     cookiesLoaded: false,
     selectedPaletteId: '',
-    initialColorsUpdated: false
+    initialColorsUpdated: false,
+    // Chat-related state
+    chatHistory: [],
+    suggestedColors: [],
+    useLLM: false,
+    llmConfig: {
+      endpoint: '',
+      apiKey: ''
+    }
   })
 
   const _setState = updater => {
