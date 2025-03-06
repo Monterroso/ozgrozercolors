@@ -9,7 +9,7 @@ class ChatService {
     }
   }
 
-  async processMessage(message, colors) {
+  async processMessage(message, colors, chatHistory = []) {
     throw new Error("Method 'processMessage' must be implemented");
   }
 }
@@ -20,7 +20,7 @@ export class RuleChatService extends ChatService {
     super();
   }
 
-  async processMessage(message, colors) {
+  async processMessage(message, colors, chatHistory = []) {
     // Convert message to lowercase for easier matching
     const lowerMessage = message.toLowerCase();
     
@@ -30,6 +30,15 @@ export class RuleChatService extends ChatService {
     // Default response
     let response = "I'm your color assistant. How can I help you with your palette today?";
     let suggestedColors = [];
+    
+    // Use chat history to provide more contextual responses
+    const recentUserMessages = chatHistory
+      .filter(msg => msg.isUser)
+      .map(msg => msg.message.toLowerCase());
+    
+    // Check for conversation context
+    const isFollowUp = recentUserMessages.length > 1;
+    const previousMessages = recentUserMessages.slice(0, -1).join(' ');
 
     // Check for specific keywords in the message
     if (lowerMessage.includes('complement') || lowerMessage.includes('complementary')) {
@@ -46,6 +55,31 @@ export class RuleChatService extends ChatService {
     }
     else if (lowerMessage.includes('analyze') || lowerMessage.includes('advice') || lowerMessage.includes('improve')) {
       response = this._analyzePalette(hexColors);
+    }
+    else if (isFollowUp) {
+      // Handle follow-up questions based on history
+      if (previousMessages.includes('complement') || previousMessages.includes('complementary')) {
+        // If previously discussing complementary colors
+        if (lowerMessage.includes('more') || lowerMessage.includes('another')) {
+          response = "Here are more complementary color options:";
+          suggestedColors = this._generateComplementaryColors(hexColors);
+        }
+      } 
+      else if (previousMessages.includes('similar') || previousMessages.includes('like')) {
+        // If previously discussing similar colors
+        if (lowerMessage.includes('more') || lowerMessage.includes('another')) {
+          response = "Here are more similar color options:";
+          suggestedColors = this._generateSimilarColors(hexColors);
+        }
+      }
+      else {
+        // Generic follow-up
+        response = "Based on our conversation, here are some color suggestions:";
+        suggestedColors = [
+          ...this._generateComplementaryColors(hexColors).slice(0, 2),
+          ...this._generateSimilarColors(hexColors).slice(0, 2)
+        ];
+      }
     }
     else {
       // Generic response with some color suggestions
@@ -172,7 +206,7 @@ export class LLMChatService extends ChatService {
     this.apiKey = config.apiKey || '';
   }
 
-  async processMessage(message, colors) {
+  async processMessage(message, colors, chatHistory = []) {
     // Check if endpoint and API key are configured
     if (!this.endpoint || !this.apiKey) {
       console.error('LLM endpoint or API key not configured');
@@ -186,20 +220,47 @@ export class LLMChatService extends ChatService {
       // Only pass hex codes to the LLM without color names
       const colorContext = colors.join(', ');
 
-      // Create the prompt with context about the current palette
-      const prompt = `
-You are a color assistant helping with color palette suggestions. 
+      // Format message history for the API request
+      const formattedHistory = chatHistory
+        .filter(msg => msg.isUser || !msg.suggestedColors) // Only include user messages and non-suggestion responses
+        .map(msg => ({
+          role: msg.isUser ? "user" : "assistant",
+          content: msg.message
+        }));
+
+      // Create the system prompt with context about the current palette
+      const systemPrompt = `
+You are an expert color consultant with deep knowledge of color theory, design principles, and aesthetic trends.
 Current palette hex codes: ${colorContext}
 
-User message: ${message}
+Here is the conversation history ${chatHistory}:
 
-Respond with helpful color advice. If suggesting new colors, include them in a structured format that can be parsed.
-For each suggested color, provide only the hex code (e.g., #FF5733).
+Here is what our user has just said and asked of us: ${message}
 
-Keep your response concise and focused on color advice.
+KEY CAPABILITIES:
+- Provide informed, professional advice on color combinations, harmony, and palette optimization
+- Suggest complementary, analogous, triadic, or monochromatic color schemes
+- Recommend colors based on psychological effects, cultural associations, and industry best practices
+- Help identify optimal color palettes for specific use cases (web design, branding, interior design, etc.)
+- Explain color relationships and principles like contrast, saturation, and color psychology
+
+IMPORTANT RESPONSE FORMAT REQUIREMENTS:
+1. When suggesting colors, ALWAYS use the format "[#RRGGBB]" for each color (e.g., [#FF5733])
+2. Do not include color names, only use the [#RRGGBB] format
+3. All hex codes must be valid 6-character codes prefixed with #
+4. You can still provide explanations about color theory and answer questions normally
+5. Keep your overall response professional and helpful
+
+Example of correct formatting when suggesting colors:
+"I recommend adding these colors to complement your palette:
+[#FF5733]
+[#33FF57]
+[#5733FF]"
+
+Take into account the entire conversation history when responding. Keep answers helpful, professional, and precise.
 `;
 
-      // Make the API call to the external LLM
+      // Make the API call to the external LLM with the conversation history
       const response = await fetch(this.endpoint, {
         method: 'POST',
         headers: {
@@ -209,8 +270,8 @@ Keep your response concise and focused on color advice.
         body: JSON.stringify({
           model: "gpt-3.5-turbo", // Default model, can be made configurable
           messages: [
-            { role: "system", content: "You are a color assistant that helps with palette suggestions." },
-            { role: "user", content: prompt }
+            { role: "system", content: systemPrompt },
+            ...formattedHistory
           ],
           temperature: 0.7
         })
@@ -229,10 +290,16 @@ Keep your response concise and focused on color advice.
       
       // Parse suggested colors from the response
       // This is a regex to find hex codes
-      const hexCodeRegex = /#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})/g;
+      const hexCodeRegex = /\[(#[A-Fa-f0-9]{6})\]/g;
       
       const suggestedColors = [];
-      const hexMatches = llmResponse.match(hexCodeRegex) || [];
+      const hexMatches = [];
+      let match;
+      
+      // Extract all matches from the regex
+      while ((match = hexCodeRegex.exec(llmResponse)) !== null) {
+        hexMatches.push(match[1]); // Push the captured hex code (without the [HEX: ] wrapper)
+      }
       
       // Process each found hex code in the response
       for (const hex of hexMatches) {
@@ -251,7 +318,7 @@ Keep your response concise and focused on color advice.
         
         // Replace hex in response with styled color name
         const styledColorName = `<span style="color:${textColor}; background-color:${hex}; padding: 2px 6px; border-radius: 3px; display: inline-block;">${colorName}</span>`;
-        llmResponse = llmResponse.replace(hex, styledColorName);
+        llmResponse = llmResponse.replace(`[${hex}]`, styledColorName);
       }
 
       return {

@@ -70,8 +70,10 @@ export default ({ modalIsOpen, closeModal }) => {
       timestamp: new Date().toISOString()
     }
     
+    const updatedChatHistory = [...chatHistory, userMessage];
+    
     setState(prevState => ({
-      chatHistory: [...prevState.chatHistory, userMessage]
+      chatHistory: updatedChatHistory
     }))
     
     // Clear input after sending
@@ -79,8 +81,12 @@ export default ({ modalIsOpen, closeModal }) => {
     setIsLoading(true)
     
     try {
-      // Process message with chat service
-      const response = await chatService.current.processMessage(userMessage.message, colors)
+      // Process message with chat service, passing in the current chat history
+      const response = await chatService.current.processMessage(
+        userMessage.message, 
+        colors,
+        updatedChatHistory
+      )
       
       // Add assistant response to chat history
       const assistantMessage = {
@@ -89,7 +95,8 @@ export default ({ modalIsOpen, closeModal }) => {
         suggestedColors: response.suggestedColors,
         timestamp: new Date().toISOString()
       }
-      
+
+      // Add the assistant's response to chat history
       setState(prevState => ({
         chatHistory: [...prevState.chatHistory, assistantMessage]
       }))
