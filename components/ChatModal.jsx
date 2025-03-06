@@ -251,7 +251,9 @@ export default ({ modalIsOpen, closeModal }) => {
                         className={`${styles.chatMessage} ${chat.isUser ? styles.userMessage : styles.assistantMessage}`}
                       >
                         <div className={styles.messageContent}>
-                          {chat.message}
+                          {chat.isUser ? chat.message : (
+                            <div dangerouslySetInnerHTML={{ __html: chat.message }}></div>
+                          )}
                         </div>
                         {!chat.isUser && chat.suggestedColors && chat.suggestedColors.length > 0 && (
                           <div className={styles.suggestedColorsContainer}>

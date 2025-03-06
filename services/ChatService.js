@@ -1,4 +1,5 @@
 import ntc from '@functions/ntc'
+import adjustTextColor from '@functions/adjustTextColor'
 
 // Base ChatService interface
 class ChatService {
@@ -182,23 +183,18 @@ export class LLMChatService extends ChatService {
     }
 
     try {
-      // Prepare the message for the LLM
-      const colorContext = colors.map(color => {
-        const colorName = ntc.name(color)[1];
-        return `${color} (${colorName})`;
-      }).join(', ');
+      // Only pass hex codes to the LLM without color names
+      const colorContext = colors.join(', ');
 
       // Create the prompt with context about the current palette
       const prompt = `
 You are a color assistant helping with color palette suggestions. 
-Current palette: ${colorContext}
+Current palette hex codes: ${colorContext}
 
 User message: ${message}
 
 Respond with helpful color advice. If suggesting new colors, include them in a structured format that can be parsed.
-For each suggested color, provide:
-1. A hex code (e.g., #FF5733)
-2. A descriptive name for the color
+For each suggested color, provide only the hex code (e.g., #FF5733).
 
 Keep your response concise and focused on color advice.
 `;
@@ -226,43 +222,36 @@ Keep your response concise and focused on color advice.
       }
 
       const data = await response.json();
+      console.log(data);
       
       // Extract the LLM's response text
-      const llmResponse = data.choices?.[0]?.message?.content || 'No response from LLM';
+      let llmResponse = data.choices?.[0]?.message?.content || 'No response from LLM';
       
       // Parse suggested colors from the response
-      // This is a simple regex-based parser that looks for hex codes
+      // This is a regex to find hex codes
       const hexCodeRegex = /#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})/g;
-      const colorNameRegex = /#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})[^\n]*?([A-Za-z\s]+)/g;
       
       const suggestedColors = [];
       const hexMatches = llmResponse.match(hexCodeRegex) || [];
       
-      // Try to extract color names along with hex codes
-      let colorMatch;
-      while ((colorMatch = colorNameRegex.exec(llmResponse)) !== null) {
-        const hex = colorMatch[0].match(hexCodeRegex)[0];
-        let name = colorMatch[2].trim();
+      // Process each found hex code in the response
+      for (const hex of hexMatches) {
+        // Get color name from ntc
+        const colorInfo = ntc.name(hex);
+        const colorName = colorInfo[1];
         
-        // If no name was found or it's too short, use ntc to get a name
-        if (!name || name.length < 3) {
-          name = ntc.name(hex)[1];
-        }
-        
+        // Add to suggested colors
         suggestedColors.push({
           hex,
-          name
+          name: colorName
         });
-      }
-      
-      // If no colors were found with names, just use the hex codes and get names from ntc
-      if (suggestedColors.length === 0 && hexMatches.length > 0) {
-        for (const hex of hexMatches) {
-          suggestedColors.push({
-            hex,
-            name: ntc.name(hex)[1]
-          });
-        }
+        
+        // Calculate text color that will be visible on this background
+        const textColor = adjustTextColor(hex);
+        
+        // Replace hex in response with styled color name
+        const styledColorName = `<span style="color:${textColor}; background-color:${hex}; padding: 2px 6px; border-radius: 3px; display: inline-block;">${colorName}</span>`;
+        llmResponse = llmResponse.replace(hex, styledColorName);
       }
 
       return {
