@@ -206,6 +206,157 @@ export class LLMChatService extends ChatService {
     this.apiKey = config.apiKey || '';
   }
 
+  // New method to generate ShadCN styles based on the color palette
+  async generateShadCNStyles(colors) {
+    // Check if endpoint and API key are configured
+    if (!this.endpoint || !this.apiKey) {
+      console.error('LLM endpoint or API key not configured');
+      return {
+        success: false,
+        message: "I'm not properly configured to use an external LLM. Please check your API endpoint and key in the settings.",
+        stylesContent: ''
+      };
+    }
+
+    try {
+      // Format colors for the prompt
+      const colorContext = colors.join(', ');
+
+      // Create the system prompt specifically for ShadCN styles generation
+      const systemPrompt = `
+You are an expert UI designer with deep knowledge of color theory and the ShadCN UI component library.
+Current palette hex codes: ${colorContext}
+
+TASK:
+Generate a complete, ready-to-use shadcn/ui global.css file that incorporates the provided color palette.
+Use the provided hex colors to create a cohesive theme for shadcn/ui components.
+
+OUTPUT FORMAT REQUIREMENTS:
+1. Follow EXACTLY this HSL format for both light and dark themes:
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+  --chart-1: 222.2 47.4% 11.2%;
+  --chart-2: 221.2 83.2% 53.3%;
+  --chart-3: 226.4 70.7% 40.2%;
+  --chart-4: 240 100% 70%;
+  --chart-5: 280 65% 60%;
+  --radius: 0.625rem;
+  --sidebar: 210 40% 98%;
+  --sidebar-foreground: 222.2 84% 4.9%;
+  --sidebar-primary: 222.2 47.4% 11.2%;
+  --sidebar-primary-foreground: 210 40% 98%;
+  --sidebar-accent: 210 40% 96.1%;
+  --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+  --sidebar-border: 214.3 31.8% 91.4%;
+  --sidebar-ring: 222.2 84% 4.9%;
+}
+ 
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+  --chart-1: 210 40% 98%;
+  --chart-2: 217.2 91.2% 59.8%;
+  --chart-3: 4.8 89.6% 58.4%;
+  --chart-4: 290 76.8% 60.6%;
+  --chart-5: 340 65.1% 60.2%;
+  --sidebar: 222.2 47.4% 11.2%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-primary: 210 40% 98%;
+  --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+  --sidebar-accent: 217.2 32.6% 17.5%;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-border: 217.2 32.6% 17.5%;
+  --sidebar-ring: 212.7 26.8% 83.9%;
+}
+
+2. Modify the HSL values to create a cohesive theme based on the provided color palette
+3. For each HSL value, use the format "H S% L%" where:
+   - H is the hue angle in degrees (0-360)
+   - S is the saturation percentage (0%-100%)
+   - L is the lightness percentage (0%-100%)
+4. Maintain accessibility standards with appropriate contrast ratios
+5. Ensure the dark theme is truly dark and provides sufficient contrast with the light theme
+6. Provide ONLY the CSS code content, nothing else
+
+The output should be in standard CSS format and ready for direct use in a global.css file for a shadcn/ui project.`;
+
+      // Make the API request
+      const response = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [
+            { role: "system", content: systemPrompt }
+          ],
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`API request failed: ${response.status} ${JSON.stringify(errorData)}`);
+      }
+
+      const data = await response.json();
+      
+      // Extract the LLM's response text
+      let stylesContent = data.choices?.[0]?.message?.content || 'No response from LLM';
+      
+      return {
+        success: true,
+        message: "ShadCN styles generated successfully!",
+        stylesContent
+      };
+    } catch (error) {
+      console.error('Error generating ShadCN styles:', error);
+      return {
+        success: false,
+        message: `Error generating ShadCN styles: ${error.message}`,
+        stylesContent: ''
+      };
+    }
+  }
+
   async processMessage(message, colors, chatHistory = []) {
     // Check if endpoint and API key are configured
     if (!this.endpoint || !this.apiKey) {
