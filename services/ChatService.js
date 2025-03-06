@@ -245,17 +245,18 @@ KEY CAPABILITIES:
 - Explain color relationships and principles like contrast, saturation, and color psychology
 
 IMPORTANT RESPONSE FORMAT REQUIREMENTS:
-1. When suggesting colors, ALWAYS use the format "[#RRGGBB]" for each color (e.g., [#FF5733])
-2. Do not include color names, only use the [#RRGGBB] format
+1. When suggesting colors, ALWAYS use the format "#RRGGBB" for each color (e.g., #FF5733)
+1.1 NEVER include the name of a color in your response, only use the #RRGGBB format
+2. Do not include color names, only use the #RRGGBB format
 3. All hex codes must be valid 6-character codes prefixed with #
 4. You can still provide explanations about color theory and answer questions normally
 5. Keep your overall response professional and helpful
 
 Example of correct formatting when suggesting colors:
 "I recommend adding these colors to complement your palette:
-[#FF5733]
-[#33FF57]
-[#5733FF]"
+#FF5733
+#33FF57
+#5733FF"
 
 Take into account the entire conversation history when responding. Keep answers helpful, professional, and precise.
 `;
@@ -290,7 +291,7 @@ Take into account the entire conversation history when responding. Keep answers 
       
       // Parse suggested colors from the response
       // This is a regex to find hex codes
-      const hexCodeRegex = /\[(#[A-Fa-f0-9]{6})\]/g;
+      const hexCodeRegex = /#[A-Fa-f0-9]{6}\b/g;
       
       const suggestedColors = [];
       const hexMatches = [];
@@ -298,7 +299,7 @@ Take into account the entire conversation history when responding. Keep answers 
       
       // Extract all matches from the regex
       while ((match = hexCodeRegex.exec(llmResponse)) !== null) {
-        hexMatches.push(match[1]); // Push the captured hex code (without the [HEX: ] wrapper)
+        hexMatches.push(match[0]); // Push the captured hex code
       }
       
       // Process each found hex code in the response
@@ -318,7 +319,7 @@ Take into account the entire conversation history when responding. Keep answers 
         
         // Replace hex in response with styled color name
         const styledColorName = `<span style="color:${textColor}; background-color:${hex}; padding: 2px 6px; border-radius: 3px; display: inline-block;">${colorName}</span>`;
-        llmResponse = llmResponse.replace(`[${hex}]`, styledColorName);
+        llmResponse = llmResponse.replace(hex, styledColorName);
       }
 
       return {
